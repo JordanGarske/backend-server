@@ -1,12 +1,14 @@
-const express = require('express')
-const cors = require("cors");
-const path = require("path");
-
-const multer = require("multer");
-const {firebaseConfig} = require("./config/firebase.js")
-const {uploadBytes, ref: storageRef, getStorage, getDownloadURL,listAll } = require("firebase/storage");
-const {initializeApp  } = require("firebase/app");
-const { get, ref,remove, push,getDatabase } = require("firebase/database");
+import express from 'express';
+import cors from 'cors';
+import path from 'path';
+import multer from "multer";
+import {db,storage} from "./config/firebase.js";
+import  {uploadBytes, ref as  storageRef, getDownloadURL,listAll } from "firebase/storage"
+import { get, ref,remove, push } from "firebase/database";
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+dotenv.config();
+// const {initializeApp  } = require("firebase/app");
 
 
 const app = express()
@@ -15,11 +17,12 @@ app.use(express.json());
 const PORT = process.env.PORT ||8080;
 const upload = multer({ storage:  multer.memoryStorage() }); 
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Initialize Firebase
-const firebaseApp = initializeApp(firebaseConfig);
-const db = getDatabase(firebaseApp)
-const storage = getStorage(firebaseApp);
+
+
 
 //get
 app.get("/api/calendar", async (req, res) => {

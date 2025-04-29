@@ -1,13 +1,13 @@
 // Import the functions you need from the SDKs you need
-
-// import { initializeApp } from "firebase/app";
-// import { getDatabase } from "firebase/database";
-// import { getStorage } from "firebase/storage";
-
+import { initializeApp } from "firebase/app";
+import dotenv from 'dotenv';
+import { getDatabase } from "firebase/database";
+import { getStorage } from "firebase/storage";
+dotenv.config();
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 
-export const firebaseConfig = {
+const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
   databaseURL: process.env.FIREBASE_DATABASE_URL,
@@ -19,12 +19,7 @@ export const firebaseConfig = {
 };
 
 
-
-
-
-
 // Initialize Firebase
-// const firebaseApp = initializeApp(firebaseConfig);
-// const db = getDatabase(firebaseApp)
-// const storage = getStorage(firebaseApp);
-// export {db,storage};
+const firebaseApp = initializeApp(firebaseConfig);
+export const db = getDatabase(firebaseApp);
+export const storage = getStorage(firebaseApp);

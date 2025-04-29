@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "main": "app.js",
+  "type": "module",
   "dependencies": {
     "accepts": "^2.0.0",
     "ansi-regex": "^5.0.1",
@@ -33,6 +34,7 @@
     "cors": "^2.8.5",
     "debug": "^4.4.0",
     "depd": "^2.0.0",
+    "dotenv": "^16.5.0",
     "dunder-proto": "^1.0.1",
     "ee-first": "^1.1.1",
     "emoji-regex": "^8.0.0",
@@ -146,12 +148,13 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rm -r ./dist && cd ../church-backend && npm run build && mv ./dist ../backend-server && cd ../backend-server && nodemon app"
+        "build": "rm -r ./dist && cd ../church-backend && npm run build && mv ./dist ../backend-server && cd ../backend-server && nodemon app"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/JordanGarske/backend-server.git"
   },
+  "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
