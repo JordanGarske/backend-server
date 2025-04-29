@@ -1,0 +1,151 @@
+const express = require('express')
+const cors = require("cors");
+const path = require("path");
+const app = express();
+
+const multer = require("multer");
+const {uploadBytes, ref: storageRef, getStorage } = require("firebase/storage");
+const {initializeApp  } = require("firebase/app");
+const { get, ref,remove, push,getDatabase } = require("firebase/database");
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT ||8080;
+const upload = multer({ storage:  multer.memoryStorage() }); 
+// Import the functions you need from the SDKs you need
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBMTosP1kYMs0BCczSWiTgm5FFpAQja8HY",
+  authDomain: "faith-church-nosql.firebaseapp.com",
+  databaseURL: "https://faith-church-nosql-default-rtdb.firebaseio.com",
+  projectId: "faith-church-nosql",
+  storageBucket: "faith-church-nosql.firebasestorage.app",
+  messagingSenderId: "72972742916",
+  appId: "1:72972742916:web:f95bdd383036c3e1f0a051",
+  measurementId: "G-H4SGSDSR19"
+};
+// Initialize Firebase
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getDatabase(firebaseApp)
+const storage = getStorage(firebaseApp);
+export {db,storage};
+
+//get request
+app.get("/api/calendar", async (req, res) => {
+  try {
+      const userRef = ref(db, 'dates/');
+      const snapshot = await get(userRef);
+      
+      if (!snapshot.exists()) {
+          return res.json([]);
+      }
+
+      const data = snapshot.val();
+      const dates = Object.keys(data).map(key => ({
+          ...data[key],
+          id: key
+      }));
+
+      res.json(dates);
+  } catch (error) {
+      console.error("Error fetching calendar data:", error);
+      res.status(500).json({ error: "Failed to fetch calendar data" });
+  }
+});
+app.post("/api/send", async (req, res) => {     
+
+  try {
+    const snapshot = push(ref(db, 'dates/' ), req.body)
+    res.json(snapshot);
+  } catch (error) {
+    console.error("Error fetching calendar data:", error);
+    res.status(500).json({ error: "Failed to fetch calendar data" });
+  }
+})
+app.post("/api/photo",upload.single('file'),  async (req, res) => {
+  const file = req.file
+  try {
+
+    // upload.single('file'),
+    // const fileBuffer = file.buffer;
+    // const og = file.originalname;
+    const sRef = storageRef(storage);
+    
+    const bytes = new Uint8Array([0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64, 0x21]);
+    uploadBytes(sRef, bytes).then((snapshot) => {
+      console.log('Uploaded an array!');
+    });
+    // const sRef = storageRef(storage, og);
+    // const result = await uploadBytes(sRef, fileBuffer);
+    // console.log("Uploaded:", result.metadata);
+
+    res.status(200).json(file);
+  } catch (err) {
+    console.error("Error uploading file", err);
+    res.status(500).json({ error: "Upload failed" });
+  }
+  // const result = await uploadBytes(sRef, req.file.filename).then((snapshot) => {
+  //   console.log('Uploaded a blob or file!');
+  // });
+  // console.log(result)
+
+  // let resultHandler = function (err) {
+  //   if (err) {
+  //       console.log("unlink failed", err);
+  //   } else {
+  //       console.log("file deleted");
+  //   }
+  //   }
+
+  //   fs.unlink(req.file.path, resultHandler);
+});
+app.delete("/api/delete", async (req, res) => {     
+
+  try {
+    const userRef = ref(db, 'dates/'+ req.body.id); 
+    const snapshot = await remove(userRef);
+
+    res.json(snapshot);
+  } catch (error) {
+    console.error("Error fetching calendar data:", error);
+    res.status(500).json({ error: "Failed to fetch calendar data" });
+  }
+})
+
+
+// sets all routes for react router frontend
+app.use(express.static(path.join(__dirname, "./dist")))
+app.listen(PORT, () =>console.log("Server started" + PORT))
+
+
+
+// const userRef = ref(db, 'dates/');
+// onValue(userRef, (snapshot) => {
+//     const data = snapshot.val();
+//     const keys = Object.keys(data);
+//     const dates = []
+//     keys.forEach(key => {
+//       const date = data[key];
+//       date['id'] = key;
+//       dates.push(date)
+//     });
+//     setData(dates)
+//     setLoading(false);
+//   })
+
+// try {
+//   const file = req.file;
+//   console.error('file',file);
+
+//   const imgRef = storageRef(storage, `uploads/${Date.now()}-${file.originalname}`);
+//   console.error('mulator',file);
+//   const fileBuffer = fs.readFileSync(file.path);
+//   const snapshot = await uploadBytes(imgRef, fileBuffer);
+//   fs.unlink(req.file.path, (err) => {
+//     if (err) console.error("Failed to delete local file:", err);
+//   });
+//   res.json({ success: true, id: snapshot.metadata.fullPath });
+// } catch (error) {
+//   console.error("Upload failed:", error);
+//   res.status(500).json({ error: "Failed to upload image or save data" });
+// }
