@@ -5,7 +5,7 @@ import multer from "multer";
 import fs from 'fs';
 import {db,storage} from "./config/firebase.js";
 import  {uploadBytes, ref as  storageRef, getDownloadURL,listAll,deleteObject,getMetadata } from "firebase/storage"
-import { get, ref,remove, push } from "firebase/database";
+import { get, ref as dbRef,remove, push, set, } from "firebase/database";
 import { fileURLToPath } from 'url';
 import { fromBuffer } from "pdf2pic";
 // const {initializeApp  } = require("firebase/app");
@@ -27,19 +27,21 @@ const __dirname = path.dirname(__filename);
 //get
 app.get("/api/calendar", async (req, res) => {
   try {
-      const userRef = ref(db, 'dates/');
+      const userRef = dbRef(db, 'dates/');
       const snapshot = await get(userRef);
-      
+
       if (!snapshot.exists()) {
           return res.json([]);
       }
 
       const data = snapshot.val();
+
       const dates = Object.keys(data).map(key => ({
           ...data[key],
+          end: new Date (data[key].end),
+          start: new Date (data[key].start),
           id: key
       }));
-
       res.json(dates);
   } catch (error) {
       console.error("Error fetching calendar data:", error);
@@ -47,9 +49,9 @@ app.get("/api/calendar", async (req, res) => {
   }
 });
 app.get("/api/get/newsletter", async(req, res)=>{
+  console.log('here', req.query.month)
   try{
-    const listResult = await listAll(storageRef(storage, 'newletter-images/'));
-    console.log(listResult.items.length);
+    const listResult = await listAll(storageRef(storage, `newletter-images/${req.query.month}`));
     const newsList = new Array(listResult.items.length);
 
     const x = await Promise.all(
@@ -67,6 +69,7 @@ app.get("/api/get/newsletter", async(req, res)=>{
         return { name: itemRef.name, url };
       })
     );
+    // console.log(newsList)
     res.status(200).json(newsList);
   }
   catch (err) {
@@ -75,6 +78,31 @@ app.get("/api/get/newsletter", async(req, res)=>{
   }
 
 })
+app.get("/api/get/", async(req, res)=>{
+  try {
+      const userRef = dbRef(db, `pages/${req.query.folder}`);
+      const snapshot = await get(userRef);
+
+      if (!snapshot.exists()) {
+          return res.json([]);
+      }
+
+      const data = snapshot.val();
+      res.json(data);
+  } catch (error) {
+      console.error("Error fetching calendar data:", error);
+      res.status(500).json({ error: "Failed to fetch calendar data" });
+  }
+})
+app.get("/api/carousel", async (req, res) => {
+  try {
+    const listResult = await getImgsObject('carousel/');
+    res.status(200).json(listResult);
+  } catch (err) {
+    console.error("Error listing files", err);
+    res.status(500).json({ error: "Listing photos failed" });
+  }
+});
 app.get("/api/photos", async (req, res) => {
   try {
     const listResult = await listAll(storageRef(storage, 'calendar-images/'));
@@ -96,14 +124,63 @@ app.get("/api/photos", async (req, res) => {
 app.post("/api/send", async (req, res) => {     
 
   try {
-    const snapshot = push(ref(db, 'dates/' ), req.body)
+    let snapshot;
+    if(req.body.id){
+      snapshot = set(dbRef(db, 'dates/'+req.body.id ), req.body)
+    }
+    else{
+      snapshot = push(dbRef(db, 'dates/' ), req.body)
+    }
+
     res.json(snapshot);
   } catch (error) {
     console.error("Error fetching calendar data:", error);
     res.status(500).json({ error: "Failed to fetch calendar data" });
   }
 })
+app.post("/api/carousel", async (req, res) => {
+  try {
+    const items = req.body;
+    const folder = dbRef(db, 'carousel/');
+    console.log(folder)
+    await remove(folder);
+    // Save each item to the database in parallel
+    await Promise.all(
+      items.map((item, i) => {
+        return set(dbRef(db, 'carousel/' + i), item);
+      })
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error saving carousel data:", error);
+    res.status(500).json({ error: "Failed to save carousel data" });
+  }
+});
 
+app.post("/api/data", async (req, res) => {     
+
+  try {
+    const snapshot = push(ref(db, `${req.query.folder}/` ), req.body)
+    res.json(snapshot);
+  } catch (error) {
+    console.error("Error fetching calendar data:", error);
+    res.status(500).json({ error: "Failed to fetch calendar data" });
+  }
+})
+app.post("/api/page", async (req, res) => {     
+
+  try {
+    await Promise.all(
+      req.body.map((item, i) => {
+        return set(dbRef(db, `pages/${req.query.folder}/${i}`), item);
+      })
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error fetching calendar data:", error);
+    res.status(500).json({ error: "Failed to fetch calendar data" });
+  }
+})
 app.post("/api/photo",upload.single('file'),  async (req, res) => {
   const file = req.file
   try {
@@ -117,54 +194,61 @@ app.post("/api/photo",upload.single('file'),  async (req, res) => {
     const result = await uploadBytes(sRef, fileBuffer,metadata);
     const url = await getDownloadURL(sRef);
 
-    listAll(storageRef(storage,'calendar-images/'))
-    .then((listResult) => {
-      listResult.items.forEach((itemRef) => {
-        // Process each file
-        console.log('File:', itemRef.name);
-      });
-    })
-    res.status(200).json(file);
+    res.status(200).json(url);
   } catch (err) {
     console.error("Error uploading file", err);
     res.status(500).json({ error: "Upload failed" });
   }
 
 });
+
 const options = {
-  density: 100,
+  density: 300,
   saveFilename: "untitled",
   savePath: "./images",
   format: "png",
-  width: 600,
-  height: 600
 };
 
 app.post("/api/post/pdf", upload.single('file'), async (req, res) => {
   const file = req.file;
+  console.log('here')
 
   try {
+    
     if (file.mimetype !== 'application/pdf') {
       return res.status(500).json({ error: "Not a PDF file" });
     }
 
-    // Delete all files in Firebase storage under 'newletter-images/'
-    const listRef = storageRef(storage, 'newletter-images/');
+    const month = req.query.month - 1;
+    console.log(month)
+    // ✅ Upload original PDF to Firebase Storage
+    const pdfRef = storageRef(storage, `newsletters/${month}.pdf`);
+    await uploadBytes(pdfRef, file.buffer, {
+      contentType: 'application/pdf',
+      customMetadata: {
+        uploadedAt: new Date().toISOString(),
+        month: month
+      }
+    });
+
+    // Delete all images in Firebase storage under 'newsletter-images/{month}/'
+    const listRef = storageRef(storage, `newletter-images/${month}/`);
     const { items } = await listAll(listRef);
     await Promise.all(items.map(item => deleteObject(item)));
 
+    // Convert PDF to images
     const imgs = await fromBuffer(file.buffer, options);
-    const pngs = await imgs.bulk(-1, { responseType: "image" });
+    const jpgs = await imgs.bulk(-1, { responseType: "image" });
 
-    for (const png of pngs) {
-      const sRef = storageRef(storage, 'newletter-images/' + png.name);
-      const buffer = fs.readFileSync(png.path);
+    for (const jpg of jpgs) {
+      const sRef = storageRef(storage, `newletter-images/${month}/` + jpg.name);
+      const buffer = fs.readFileSync(jpg.path);
       const result = await uploadBytes(sRef, buffer, { 
         contentType: 'image/png',
         customMetadata: {
-          'page': png.page,
+          page: jpg.page,
         }
-       });
+      });
 
       console.log(result.metadata.fullPath);
     }
@@ -185,7 +269,7 @@ app.post("/api/post/pdf", upload.single('file'), async (req, res) => {
       });
     });
 
-    res.status(200).json(newsList);
+    res.status(200).json('success');
 
   } catch (err) {
     console.error("Error uploading file", err);
@@ -193,19 +277,43 @@ app.post("/api/post/pdf", upload.single('file'), async (req, res) => {
   }
 });
 
-
 app.delete("/api/delete", async (req, res) => {     
 
   try {
-    const userRef = ref(db, 'dates/'+ req.body.id); 
+    const userRef = dbRef(db, 'dates/'+ req.body.id); 
     const snapshot = await remove(userRef);
-
+    console.log('pass');
     res.json(snapshot);
   } catch (error) {
     console.error("Error fetching calendar data:", error);
     res.status(500).json({ error: "Failed to fetch calendar data" });
   }
 })
-
-app.use(express.static(path.join(__dirname, "./dist")))
+app.use(express.static(path.join(__dirname, "./build/client")))
+app.get(/(.*)/, (req, res) => {
+  res.sendFile(path.join(__dirname, "./build/client/index.html"));
+});
 app.listen(PORT, () =>{console.log("Server started" + PORT)})
+
+
+
+
+
+async function getImgsObject(folder){
+    try {
+        const userRef = dbRef(db, folder);
+        const snapshot = await get(userRef);
+        console.log('does snapshot exist', snapshot.exists())
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const images = data.map((data) => {
+            return data.photo;
+          });
+          return images;
+        }
+
+    } catch (error) {
+        console.error("Error fetching calendar data:", error);
+        return[]
+    }
+}
